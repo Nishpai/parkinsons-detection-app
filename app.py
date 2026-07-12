@@ -2,7 +2,7 @@ import streamlit as st
 import joblib
 import pandas as pd
 
-model = joblib.load('parkinsons_xgboost_tuned_pipeline.pkl')
+model = joblib.load('parkinsons_xgboost_tuned_pipeline.pkl', mmap_mode=None)
 
 st.set_page_config(page_title="Parkinson's Detection", page_icon="🧠", layout="centered")
 
