@@ -1,15 +1,9 @@
 import streamlit as st
 import joblib
 import pandas as pd
-import shap
-import matplotlib.pyplot as plt
-import xgboost as xgb
 
-# ====================== LOAD MODEL ======================
-scaler = joblib.load('scaler.pkl')
-
-xgb_model = xgb.Booster()
-xgb_model.load_model('xgboost_model.json')
+# Load model with mmap_mode=None
+model = joblib.load('parkinsons_xgboost_tuned_pipeline.pkl', mmap_mode=None)
 
 st.set_page_config(page_title="Parkinson's Detection", page_icon="🧠", layout="centered")
 
@@ -114,18 +108,14 @@ input_data = pd.DataFrame({
 
 st.markdown("---")
 
-# ==================== PREDICTION ====================
 if st.button("🔍 Predict", type="primary", use_container_width=True):
-    input_scaled = scaler.transform(input_data)
-    dtest = xgb.DMatrix(input_scaled)
-    
-    prob_parkinsons = xgb_model.predict(dtest)[0]
+    prediction = model.predict(input_data)
+    prob_parkinsons = model.predict_proba(input_data)[0][1]
     prob_healthy = 1 - prob_parkinsons
-    prediction = 1 if prob_parkinsons > 0.5 else 0
 
     st.subheader("Prediction Result")
 
-    if prediction == 1:
+    if prediction[0] == 1:
         st.error("**Parkinson's Disease Detected**")
     else:
         st.success("**Healthy (No Parkinson's Detected)**")
@@ -140,43 +130,18 @@ if st.button("🔍 Predict", type="primary", use_container_width=True):
 
     st.caption("⚠️ This is an AI prediction for educational purposes only. Please consult a doctor.")
 
-    # ==================== SHAP ====================
-    st.markdown("---")
-    if st.button("📊 Explain Prediction with SHAP", use_container_width=True):
-        with st.spinner("Calculating SHAP values..."):
-            explainer = shap.TreeExplainer(xgb_model)
-            shap_values = explainer.shap_values(input_scaled)
-
-            explanation = shap.Explanation(
-                values=shap_values[0],
-                base_values=explainer.expected_value,
-                data=input_scaled[0],
-                feature_names=input_data.columns.tolist()
-            )
-
-            fig, ax = plt.subplots(figsize=(10, 7))
-            shap.plots.waterfall(explanation, show=False)
-            st.pyplot(fig)
-
-            st.caption(
-                "🔴 Red bars = Features that **increase** the chance of Parkinson's\n"
-                "🔵 Blue bars = Features that **decrease** the chance of Parkinson's"
-            )
-
 # Feature Importance
 st.markdown("---")
 
 with st.expander("📊 Show Feature Importance"):
-    # Get feature importance from Booster
-    importance_dict = xgb_model.get_score(importance_type='weight')
-    
+    xgb_model = model.named_steps['classifier']
     importances = pd.DataFrame({
-        'Feature': list(importance_dict.keys()),
-        'Importance': list(importance_dict.values())
+        'Feature': input_data.columns,
+        'Importance': xgb_model.feature_importances_
     }).sort_values('Importance', ascending=False).head(10)
 
     st.bar_chart(importances.set_index('Feature'))
     st.caption("Higher bars = More important features according to the model")
-    
+
 st.markdown("---")
 st.caption("Parkinson's Detection App | Educational Project")
