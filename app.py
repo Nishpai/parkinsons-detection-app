@@ -3,9 +3,13 @@ import joblib
 import pandas as pd
 import shap
 import matplotlib.pyplot as plt
+from xgboost import XGBClassifier
 
-# Load model with mmap_mode=None
-model = joblib.load('parkinsons_xgboost_tuned_pipeline.pkl', mmap_mode=None)
+# ====================== LOAD NEW FILES ======================
+scaler = joblib.load('scaler.pkl')
+
+xgb_model = XGBClassifier()
+xgb_model.load_model('xgboost_model.json')
 
 st.set_page_config(page_title="Parkinson's Detection", page_icon="🧠", layout="centered")
 
@@ -112,8 +116,12 @@ st.markdown("---")
 
 # ==================== PREDICTION ====================
 if st.button("🔍 Predict", type="primary", use_container_width=True):
-    prediction = model.predict(input_data)
-    prob_parkinsons = model.predict_proba(input_data)[0][1]
+    # Scale the input
+    input_scaled = scaler.transform(input_data)
+    
+    # Predict using XGBoost model
+    prediction = xgb_model.predict(input_scaled)
+    prob_parkinsons = xgb_model.predict_proba(input_scaled)[0][1]
     prob_healthy = 1 - prob_parkinsons
 
     st.subheader("Prediction Result")
@@ -137,18 +145,9 @@ if st.button("🔍 Predict", type="primary", use_container_width=True):
     st.markdown("---")
     if st.button("📊 Explain Prediction with SHAP", use_container_width=True):
         with st.spinner("Calculating SHAP values... This may take a few seconds"):
-            # Get components from pipeline
-            scaler = model.named_steps['scaler']
-            xgb_model = model.named_steps['classifier']
-
-            # Scale the input
-            input_scaled = scaler.transform(input_data)
-
-            # Create SHAP explainer
             explainer = shap.TreeExplainer(xgb_model)
             shap_values = explainer.shap_values(input_scaled)
 
-            # Create Explanation object
             explanation = shap.Explanation(
                 values=shap_values[0],
                 base_values=explainer.expected_value,
@@ -156,7 +155,6 @@ if st.button("🔍 Predict", type="primary", use_container_width=True):
                 feature_names=input_data.columns.tolist()
             )
 
-            # Plot waterfall
             fig, ax = plt.subplots(figsize=(10, 7))
             shap.plots.waterfall(explanation, show=False)
             st.pyplot(fig)
@@ -170,7 +168,6 @@ if st.button("🔍 Predict", type="primary", use_container_width=True):
 st.markdown("---")
 
 with st.expander("📊 Show Feature Importance"):
-    xgb_model = model.named_steps['classifier']
     importances = pd.DataFrame({
         'Feature': input_data.columns,
         'Importance': xgb_model.feature_importances_
