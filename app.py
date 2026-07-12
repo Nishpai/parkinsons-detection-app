@@ -1,8 +1,10 @@
 import streamlit as st
 import joblib
 import pandas as pd
+import shap
+import matplotlib.pyplot as plt
 
-# Load model with mmap_mode=None to fix AttributeError
+# Load model with mmap_mode=None
 model = joblib.load('parkinsons_xgboost_tuned_pipeline.pkl', mmap_mode=None)
 
 st.set_page_config(page_title="Parkinson's Detection", page_icon="🧠", layout="centered")
@@ -108,7 +110,7 @@ input_data = pd.DataFrame({
 
 st.markdown("---")
 
-# Prediction
+# ==================== PREDICTION ====================
 if st.button("🔍 Predict", type="primary", use_container_width=True):
     prediction = model.predict(input_data)
     prob_parkinsons = model.predict_proba(input_data)[0][1]
@@ -131,6 +133,39 @@ if st.button("🔍 Predict", type="primary", use_container_width=True):
 
     st.caption("⚠️ This is an AI prediction for educational purposes only. Please consult a doctor.")
 
+    # ==================== SHAP EXPLANATION ====================
+    st.markdown("---")
+    if st.button("📊 Explain Prediction with SHAP", use_container_width=True):
+        with st.spinner("Calculating SHAP values... This may take a few seconds"):
+            # Get components from pipeline
+            scaler = model.named_steps['scaler']
+            xgb_model = model.named_steps['classifier']
+
+            # Scale the input
+            input_scaled = scaler.transform(input_data)
+
+            # Create SHAP explainer
+            explainer = shap.TreeExplainer(xgb_model)
+            shap_values = explainer.shap_values(input_scaled)
+
+            # Create Explanation object
+            explanation = shap.Explanation(
+                values=shap_values[0],
+                base_values=explainer.expected_value,
+                data=input_scaled[0],
+                feature_names=input_data.columns.tolist()
+            )
+
+            # Plot waterfall
+            fig, ax = plt.subplots(figsize=(10, 7))
+            shap.plots.waterfall(explanation, show=False)
+            st.pyplot(fig)
+
+            st.caption(
+                "🔴 Red bars = Features that **increase** the chance of Parkinson's\n"
+                "🔵 Blue bars = Features that **decrease** the chance of Parkinson's"
+            )
+
 # Feature Importance
 st.markdown("---")
 
@@ -142,7 +177,7 @@ with st.expander("📊 Show Feature Importance"):
     }).sort_values('Importance', ascending=False).head(10)
 
     st.bar_chart(importances.set_index('Feature'))
-    st.caption("Higher bars = More important features for the prediction")
+    st.caption("Higher bars = More important features according to the model")
 
 st.markdown("---")
 st.caption("Parkinson's Detection App | Educational Project")
