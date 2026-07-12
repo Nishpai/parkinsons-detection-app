@@ -167,13 +167,16 @@ if st.button("🔍 Predict", type="primary", use_container_width=True):
 st.markdown("---")
 
 with st.expander("📊 Show Feature Importance"):
+    # Get feature importance from Booster
+    importance_dict = xgb_model.get_score(importance_type='weight')
+    
     importances = pd.DataFrame({
-        'Feature': input_data.columns,
-        'Importance': xgb_model.feature_importances_
+        'Feature': list(importance_dict.keys()),
+        'Importance': list(importance_dict.values())
     }).sort_values('Importance', ascending=False).head(10)
 
     st.bar_chart(importances.set_index('Feature'))
     st.caption("Higher bars = More important features according to the model")
-
+    
 st.markdown("---")
 st.caption("Parkinson's Detection App | Educational Project")
