@@ -3,12 +3,12 @@ import joblib
 import pandas as pd
 import shap
 import matplotlib.pyplot as plt
-from xgboost import XGBClassifier
+import xgboost as xgb
 
-# ====================== LOAD NEW FILES ======================
+# ====================== LOAD MODEL ======================
 scaler = joblib.load('scaler.pkl')
 
-xgb_model = XGBClassifier()
+xgb_model = xgb.Booster()
 xgb_model.load_model('xgboost_model.json')
 
 st.set_page_config(page_title="Parkinson's Detection", page_icon="🧠", layout="centered")
@@ -116,17 +116,16 @@ st.markdown("---")
 
 # ==================== PREDICTION ====================
 if st.button("🔍 Predict", type="primary", use_container_width=True):
-    # Scale the input
     input_scaled = scaler.transform(input_data)
+    dtest = xgb.DMatrix(input_scaled)
     
-    # Predict using XGBoost model
-    prediction = xgb_model.predict(input_scaled)
-    prob_parkinsons = xgb_model.predict_proba(input_scaled)[0][1]
+    prob_parkinsons = xgb_model.predict(dtest)[0]
     prob_healthy = 1 - prob_parkinsons
+    prediction = 1 if prob_parkinsons > 0.5 else 0
 
     st.subheader("Prediction Result")
 
-    if prediction[0] == 1:
+    if prediction == 1:
         st.error("**Parkinson's Disease Detected**")
     else:
         st.success("**Healthy (No Parkinson's Detected)**")
@@ -141,10 +140,10 @@ if st.button("🔍 Predict", type="primary", use_container_width=True):
 
     st.caption("⚠️ This is an AI prediction for educational purposes only. Please consult a doctor.")
 
-    # ==================== SHAP EXPLANATION ====================
+    # ==================== SHAP ====================
     st.markdown("---")
     if st.button("📊 Explain Prediction with SHAP", use_container_width=True):
-        with st.spinner("Calculating SHAP values... This may take a few seconds"):
+        with st.spinner("Calculating SHAP values..."):
             explainer = shap.TreeExplainer(xgb_model)
             shap_values = explainer.shap_values(input_scaled)
 
